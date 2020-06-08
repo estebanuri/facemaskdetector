@@ -1,86 +1,32 @@
-# TensorFlow Lite Object Detection Android Demo
+# Android Face Mask Recognition 
 ### Overview
-This is a camera app that continuously detects the objects (bounding boxes and classes) in the frames seen by your device's back camera, using a quantized [MobileNet SSD](https://github.com/tensorflow/models/tree/master/research/object_detection) model trained on the [COCO dataset](http://cocodataset.org/). These instructions walk you through building and running the demo on an Android device.
+The recent coronavirus pandemic has pushed people around the world to new challenges. In this context of uncertainty, we can all play our role by contributing to the fight against this disease. This is an excellent opportunity to put technology at the service of humanity. From my place I could try to contribute with the tools that I can work on. So here I've developed an application to detect face masks in the smartphone. This application works in real time.
 
-The model files are downloaded via Gradle scripts when you build and run. You don't need to do any steps to download TFLite models into the project explicitly.
+### Motivation
+Although it is not entirely clear how much the use of the face mask can protect us from the virus, it is chilling to see how far a simple sneeze can drop breath droplets, potentially carrying with them the virus. If the use of the face mask could reduce at least a bit the propagation I think it is worth it to enforce its use.
 
-Application can run either on device or emulator.
-
-<!-- TODO(b/124116863): Add app screenshot. -->
-
-## Build the demo using Android Studio
-
-### Prerequisites
-
-* If you don't have already, install **[Android Studio](https://developer.android.com/studio/index.html)**, following the instructions on the website.
-
-* You need an Android device and Android development environment with minimum API 21.
-* Android Studio 3.2 or later.
-
-### Building
-* Open Android Studio, and from the Welcome screen, select Open an existing Android Studio project.
-
-* From the Open File or Project window that appears, navigate to and select the tensorflow-lite/examples/object_detection/android directory from wherever you cloned the TensorFlow Lite sample GitHub repo. Click OK.
-
-* If it asks you to do a Gradle Sync, click OK.
-
-* You may also need to install various platforms and tools, if you get errors like "Failed to find target with hash string 'android-21'" and similar.
-Click the Run button (the green arrow) or select Run > Run 'android' from the top menu. You may need to rebuild the project using Build > Rebuild Project.
-
-* If it asks you to use Instant Run, click Proceed Without Instant Run.
-
-* Also, you need to have an Android device plugged in with developer options enabled at this point. See **[here](https://developer.android.com/studio/run/device)** for more details on setting up developer devices.
+A solution that is within everyone's reach could help to control the use of the face mask. And today everyone has a smartphone, so perhaps a mobile application could help. This post solves this problem using an Android mobile application that recognizes face masks. I hope this small contribution is useful.
 
 
-### Model used
-Downloading, extraction and placing it in assets folder has been managed automatically by download.gradle.
+## A good face mask detector for mobile
+The great Adrian Rosebrock, has recently published  a great article about how to train a deep learning model to achieve this task. In his post he used this dataset provided by Prajna Bhandary, which was very cleverly generated (by artificially drawing face masks over the positions of detected face landmarks).
+The approach proposed by Adrian is to utilize a two-stages detector, first a face detector is applied, to retrieve the faces positions. Then each face is cropped and prepossessed to be feed into the second model which does a binary classification detecting between "mask" or "no-mask".
 
-If you explicitly want to download the model, you can download from **[here](http://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip)**. Extract the zip to get the .tflite and label file.
+The model was converted from Keras to TensorFlow Lite using the TocoConverter python class to migrate from the Keras '.h5' format to the TensorFlow Lite '.tflite' format.
 
+## Based on TensorFlow Lite Object Recognition Example
+This code modified from the TensorFlow's object detection canonical example, to be used with the face mask model described above. In that repository we can find the source code for Android, iOS and Raspberry Pi. Here we will focus on making it work on Android, but doing it on the other platforms would simply consist of doing the analogous procedure.
 
-### Custom model used
-This example shows you how to perform TensorFlow Lite object detection using a custom model.
-* Clone the TensorFlow models GitHub repository to your computer.
-```
-git clone https://github.com/tensorflow/models/
-```
-* Build and install this repository.
-```
-cd models
-python3 setup.py build && python3 setup.py install
-```
-* Download the MobileNet SSD trained on **[Open Images v4](https://storage.googleapis.com/openimages/web/factsfigures_v4.html)** **[here](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md)**. Extract the pretrained TensorFlow model files.
-* Go to `models/research` directory and execute this code to get the frozen TensorFlow Lite graph.
-```
-python3 object_detection/export_tflite_ssd_graph.py \
-  --pipeline_config_path object_detection/samples/configs/ssd_mobilenet_v2_oid_v4.config \
-  --trained_checkpoint_prefix <directory with ssd_mobilenet_v2_oid_v4_2018_12_12>/model.ckpt \
-  --output_directory exported_model
-```
-* Convert the frozen graph to the TFLite model.
-```
-tflite_convert \
-  --input_shape=1,300,300,3 \
-  --input_arrays=normalized_input_image_tensor \
-  --output_arrays=TFLite_Detection_PostProcess,TFLite_Detection_PostProcess:1,TFLite_Detection_PostProcess:2,TFLite_Detection_PostProcess:3 \
-  --allow_custom_ops \
-  --graph_def_file=exported_model/tflite_graph.pb \
-  --output_file=<directory with the TensorFlow examples repository>/lite/examples/object_detection/android/app/src/main/assets/detect.tflite
-```
-`input_shape=1,300,300,3` because the pretrained model works only with that input shape.
+## Adding the Face Recognition Step
+The original code works with a single model (trained on the COCO dataset) and computes the results in one single step. For this app, we need to implement the two steps detection. Most of the work will consist in splitting the detection, first the face detection and second the mask detection. For the face detection step we are going to use the Google ML kit.
+he original app defines two bitmaps (the rgbFrameBitmap where the preview frame is copied, and the croppedBitmap which is originally used to feed the inference model). We are going to define two additional bitmaps for processing, the portraitBmp and the faceBmp. The first is simply to rotate the input frame in portrait mode for devices that have the sensor in landscape orientation. And the faceBmp bitmap is used to draw every detected face, cropping its detected location, and re-scaling to 224 x 224 px to be used as input of the MobileNetV2 model. The frameToCropTransform converts coordinates from the original bitmap to the cropped bitmap space, and cropToFrameTransform does it in the opposite direction.
 
-`allow_custom_ops` is necessary to allow TFLite_Detection_PostProcess operation.
+When the frames arrive the face detector is used. Face detection is done on the croppedBitmap, since is smaller it can speed up the detection process.
 
-`input_arrays` and `output_arrays` can be drawn from the visualized graph of the example detection model.
-```
-bazel run //tensorflow/lite/tools:visualize \
-  "<directory with the TensorFlow examples repository>/lite/examples/object_detection/android/app/src/main/assets/detect.tflite" \
-  detect.html
-```
+If faces are detected, the original frame is drawn in the portraitBmp bitmap to proceed with the second step detection. For each detected face, its bounding box is retrieved and mapped from the cropped space to the original space. This way we can get a better resolution image to feed the mask detector. Face cropping is done by translating the portrait bitmap to the face's origin and scaling in such a way the face bounding box size matches the 224x224 pixels. Finally the mask detector is invoked.
 
-* Get `labelmap.txt` from the second column of **[class-descriptions-boxable](https://storage.googleapis.com/openimages/2018_04/class-descriptions-boxable.csv)**.
-* In `DetectorActivity.java` set `TF_OD_API_IS_QUANTIZED` to `false` and in `TFLiteObjectDetectionAPIModel.java` set `labelOffset` to `0`.
+## Adding the mask detection step
+First the TensorFlow Lite model file was added to the assets folder of the project.
 
+And then the required parameters to fit our model requirements in the DetectorActivity configuration section were adjusted. We set the input size of the model to TF_OD_API_INPUT_SIZE = 224, and TF_OD_IS_QUANTIZED = false. We need to point to the mask detector file. Also we can create a label map text file with the classes names "mask" and "no-mask". Also we define a larger preview size to (800x600) px. to have better resolution for our detector.
 
-### Additional Note
-_Please do not delete the assets folder content_. If you explicitly deleted the files, then please choose *Build*->*Rebuild* from menu to re-download the deleted model files into assets folder.
