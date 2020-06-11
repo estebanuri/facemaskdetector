@@ -1,7 +1,8 @@
 
 # Real time face mask detection in Android 
 
-[![real time face mask detection in android](http://img.youtube.com/vi/9bxqWqg1Ixo/0.jpg)](https://www.youtube.com/watch?v=9bxqWqg1Ixo "demo")
+![demo 1](demo/demo1.gif) ![demo 2](demo/demo2.gif) 
+
 
 ### Overview
 The recent coronavirus pandemic has pushed people around the world to new challenges. In this context of uncertainty, we can all play our role by contributing to the fight against this disease. This is an excellent opportunity to put technology at the service of humanity. From my place I could try to contribute with the tools that I can work on. So here I've developed an application to detect face masks in the smartphone. This application works in real time.
@@ -37,3 +38,7 @@ First the TensorFlow Lite model file was added to the assets folder of the proje
 
 And then the required parameters to fit our model requirements in the DetectorActivity configuration section were adjusted. We set the input size of the model to **TF_OD_API_INPUT_SIZE = 224**, and **TF_OD_IS_QUANTIZED = false**. We need to point to the mask detector file. Also we can create a label map text file with the classes names "mask" and "no-mask". Also we define a larger preview size to (800x600) px. to have better resolution for our detector.
 
+
+## More examples
+
+[![real time face mask detection in android](http://img.youtube.com/vi/9bxqWqg1Ixo/0.jpg)](https://www.youtube.com/watch?v=wFIIoYAte-k&list=PLFfYWLUQYSbqhrJj8ogRNR8WjQizxpHyq "more examples")
