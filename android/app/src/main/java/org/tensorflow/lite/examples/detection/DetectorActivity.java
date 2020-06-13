@@ -183,7 +183,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
 
     int targetW, targetH;
-    if (sensorOrientation == 90 || sensorOrientation == 180) {
+    if (sensorOrientation == 90 || sensorOrientation == 270) {
       targetH = previewWidth;
       targetW = previewHeight;
     }
@@ -263,10 +263,10 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             .addOnSuccessListener(new OnSuccessListener<List<Face>>() {
               @Override
               public void onSuccess(List<Face> faces) {
-//                if (faces.size() == 0) {
-//                  computingDetection = false;
-//                  return;
-//                }
+                if (faces.size() == 0) {
+                  updateResults(currTimestamp, new LinkedList<>());
+                  return;
+                }
                 runInBackground(
                         new Runnable() {
                           @Override
@@ -346,6 +346,25 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
   }
 
+  private void updateResults(long currTimestamp, final List<Classifier.Recognition> mappedRecognitions) {
+
+    tracker.trackResults(mappedRecognitions, currTimestamp);
+    trackingOverlay.postInvalidate();
+    computingDetection = false;
+
+
+    runOnUiThread(
+            new Runnable() {
+              @Override
+              public void run() {
+                showFrameInfo(previewWidth + "x" + previewHeight);
+                showCropInfo(croppedBitmap.getWidth() + "x" + croppedBitmap.getHeight());
+                showInference(lastProcessingTimeMs + "ms");
+              }
+            });
+
+  }
+
   private void onFacesDetected(long currTimestamp, List<Face> faces) {
 
     cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
@@ -398,24 +417,20 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
 
       final RectF boundingBox = new RectF(face.getBoundingBox());
+
       //final boolean goodConfidence = result.getConfidence() >= minimumConfidence;
       final boolean goodConfidence = true; //face.get;
       if (boundingBox != null && goodConfidence) {
 
+        // maps crop coordinates to original
         cropToFrameTransform.mapRect(boundingBox);
-        if (getCameraFacing() == CameraCharacteristics.LENS_FACING_FRONT) {
 
-          // flips vertically
-          Matrix flip = new Matrix();
-          flip.postScale(1, -1, targetW / 2.0f, targetH / 2.0f);
-          flip.mapRect(boundingBox);
-
-        }
-
-
+        // maps original coordinates to portrait coordinates
         RectF faceBB = new RectF(boundingBox);
         transform.mapRect(faceBB);
 
+        // translates portrait to origin and scales to fit input inference size
+        //cv.drawRect(faceBB, paint);
         float sx = ((float) TF_OD_API_INPUT_SIZE) / faceBB.width();
         float sy = ((float) TF_OD_API_INPUT_SIZE) / faceBB.height();
         Matrix matrix = new Matrix();
@@ -452,6 +467,22 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
         }
 
+        if (getCameraFacing() == CameraCharacteristics.LENS_FACING_FRONT) {
+
+          // camera is frontal so the image is flipped horizontally
+          // flips horizontally
+          Matrix flip = new Matrix();
+          if (sensorOrientation == 90 || sensorOrientation == 270) {
+            flip.postScale(1, -1, previewWidth / 2.0f, previewHeight / 2.0f);
+          }
+          else {
+            flip.postScale(-1, 1, previewWidth / 2.0f, previewHeight / 2.0f);
+          }
+          //flip.postScale(1, -1, targetW / 2.0f, targetH / 2.0f);
+          flip.mapRect(boundingBox);
+
+        }
+
         final Classifier.Recognition result = new Classifier.Recognition(
                 "0", label, confidence, boundingBox);
 
@@ -463,27 +494,14 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
       }
 
 
-
     }
 
-    tracker.trackResults(mappedRecognitions, currTimestamp);
-    trackingOverlay.postInvalidate();
-
-    computingDetection = false;
-
-//    if (saved) {
+    //    if (saved) {
 //      lastSaved = System.currentTimeMillis();
 //    }
 
-    runOnUiThread(
-            new Runnable() {
-              @Override
-              public void run() {
-                showFrameInfo(previewWidth + "x" + previewHeight);
-                showCropInfo(cropCopyBitmap.getWidth() + "x" + cropCopyBitmap.getHeight());
-                showInference(lastProcessingTimeMs + "ms");
-              }
-            });
+    updateResults(currTimestamp, mappedRecognitions);
+
 
   }
 
