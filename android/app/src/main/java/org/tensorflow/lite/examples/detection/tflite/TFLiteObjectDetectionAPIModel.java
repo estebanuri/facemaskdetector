@@ -15,11 +15,17 @@ limitations under the License.
 
 package org.tensorflow.lite.examples.detection.tflite;
 
+import android.app.Service;
 import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.RectF;
+import android.os.Build;
 import android.os.Trace;
+import android.os.Vibrator;
+
+import androidx.annotation.RequiresApi;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -35,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.examples.detection.CameraActivity;
+import org.tensorflow.lite.examples.detection.DetectorActivity;
 import org.tensorflow.lite.examples.detection.env.Logger;
 
 /**
@@ -78,11 +86,14 @@ public class TFLiteObjectDetectionAPIModel implements Classifier {
   private ByteBuffer imgData;
 
   private Interpreter tfLite;
+  Interpreter.Options tfliteOptions = new Interpreter.Options();
 
 // Face Mask Detector Output
   private float[][] output;
-
-  private TFLiteObjectDetectionAPIModel() {}
+  private CameraActivity DA = new DetectorActivity() {
+  };
+  private TFLiteObjectDetectionAPIModel() {
+  }
 
   /** Memory-map the model file in Assets. */
   private static MappedByteBuffer loadModelFile(AssetManager assets, String modelFilename)
@@ -151,6 +162,7 @@ public class TFLiteObjectDetectionAPIModel implements Classifier {
     return d;
   }
 
+  @RequiresApi(api = Build.VERSION_CODES.M)
   @Override
   public List<Recognition> recognizeImage(final Bitmap bitmap) {
     // Log this method so that it can be analyzed with systrace.
@@ -211,14 +223,26 @@ public class TFLiteObjectDetectionAPIModel implements Classifier {
     String id;
     String label;
     if (mask > no_mask) {
-      label = "mask";
+      label = "有戴口罩";
       confidence = mask;
       id = "0";
+      //boolean isRecording = true;
+      //DA.prepareVideoRecorder();
+      //DA.stop_videoRecoed();
+      //DA.releasemr();
+      //DA.lock=true;
+      //DA.videoRecord(isRecording);
+
     }
     else {
-       label = "no mask";
+       label = "沒戴口罩";
        confidence = no_mask;
        id = "1";
+       boolean isRecording = false;
+       //DA.prepareVideoRecorder();
+       //DA.videoRecord();
+       //DA.lock=false;
+       //new DetectorActivity().setVibrate(1000);
     }
 
 
@@ -280,6 +304,9 @@ public class TFLiteObjectDetectionAPIModel implements Classifier {
 
   @Override
   public void setUseNNAPI(boolean isChecked) {
-    if (tfLite != null) tfLite.setUseNNAPI(isChecked);
+    if (tfLite != null) {
+      tfliteOptions.setUseNNAPI(isChecked);
+      //tfLite = new Interpreter(loadModelFile(assetManager, modelFilename), tfliteOptions);
+    }
   }
 }
