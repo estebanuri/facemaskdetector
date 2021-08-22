@@ -45,10 +45,11 @@ dependencies {
     implementation 'androidx.coordinatorlayout:coordinatorlayout:1.0.0'
     implementation 'com.google.android.material:material:1.0.0'
     implementation('org.tensorflow:tensorflow-lite:0.0.0-nightly') { changing = true }
+    implementation 'org.tensorflow:tensorflow-lite-select-tf-ops:0.0.0-nightly'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'
     androidTestImplementation 'com.android.support.test:rules:1.0.2'
     androidTestImplementation 'com.google.truth:truth:1.0.1'
-
+    implementation 'com.karumi:dexter:6.2.2'
     // added MLKit dependencies for face detector
     implementation 'com.google.mlkit:face-detection:16.0.0'
 

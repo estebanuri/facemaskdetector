@@ -16,6 +16,7 @@
 
 package org.tensorflow.lite.examples.detection;
 
+import android.app.Service;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.Canvas;
@@ -26,13 +27,23 @@ import android.graphics.Paint.Style;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.hardware.camera2.CameraCharacteristics;
+import android.media.AudioManager;
 import android.media.ImageReader.OnImageAvailableListener;
+import android.media.SoundPool;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Size;
 import android.util.TypedValue;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.Toast;
+import android.os.Vibrator;
 
+import androidx.annotation.RequiresApi;
+import android.app.Service;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.face.Face;
@@ -78,8 +89,8 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   // Minimum detection confidence to track a detection.
   private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
   private static final boolean MAINTAIN_ASPECT = false;
-
-  private static final Size DESIRED_PREVIEW_SIZE = new Size(800, 600);
+  //private static final Size DESIRED_PREVIEW_SIZE = new Size(800, 600);
+  private static final Size DESIRED_PREVIEW_SIZE = new Size(max_width, max_height);
   //private static final int CROP_SIZE = 320;
   //private static final Size CROP_SIZE = new Size(320, 320);
 
@@ -115,14 +126,41 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
   private Bitmap portraitBmp = null;
   // here the face is cropped and drawn
   private Bitmap faceBmp = null;
-
+  private SoundPool snd;
+  private int alert;
+  private Handler post = null;
+  private HandlerThread alertThread = null;
+  private  String waitName = "wait";
+  private String alertName = "toAlert";
+  private boolean alertStart;
+  private boolean stopalert;
+  private HandlerThread waitThread = null;
+  private Handler wait = null;
+  private boolean preWork = true;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
+    //requestWindowFeature(Window.FEATURE_NO_TITLE);   //全螢幕設定
+    //getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
     super.onCreate(savedInstanceState);
+    snd = new SoundPool.Builder().build();
+    alert = snd.load(this,R.raw.alert,1);
+    alertThread = new HandlerThread(alertName);
+    alertThread.start();
+    post = new Handler(alertThread.getLooper());
+    waitThread = new HandlerThread("waitName");
+    waitThread.start();;
+    wait = new Handler(waitThread.getLooper());
 
-
+    //wait.postDelayed(waitWork,3500);
+    /*while(preWork == true){
+      wait.postDelayed(waitWork,3500);
+    }*/
+    //wait.postDelayed(waitWork,3500);
+    //post.postDelayed(alertWork,3000);
+    //post.post(alertWork);
     // Real-time contour detection of multiple faces
+
     FaceDetectorOptions options =
             new FaceDetectorOptions.Builder()
                     .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
@@ -140,6 +178,11 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
   }
 
+  @RequiresApi(api = Build.VERSION_CODES.M)
+  public void setVibrate(int time){
+    Vibrator myVibrator = (Vibrator) getSystemService(Service.VIBRATOR_SERVICE);
+    myVibrator.vibrate(time);
+  }
   @Override
   public void onPreviewSizeChosen(final Size size, final int rotation) {
     final float textSizePx =
@@ -235,6 +278,7 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
   @Override
   protected void processImage() {
+
     ++timestamp;
     final long currTimestamp = timestamp;
     trackingOverlay.postInvalidate();
@@ -270,9 +314,14 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
                 }
                 runInBackground(
                         new Runnable() {
+                          @RequiresApi(api = Build.VERSION_CODES.M)
                           @Override
                           public void run() {
-                            onFacesDetected(currTimestamp, faces);
+                            try {
+                              onFacesDetected(currTimestamp, faces);
+                            } catch (InterruptedException e) {
+                              e.printStackTrace();
+                            }
                           }
                         });
               }
@@ -358,15 +407,16 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             new Runnable() {
               @Override
               public void run() {
-                showFrameInfo(previewWidth + "x" + previewHeight);
+                /*showFrameInfo(previewWidth + "x" + previewHeight);
                 showCropInfo(croppedBitmap.getWidth() + "x" + croppedBitmap.getHeight());
-                showInference(lastProcessingTimeMs + "ms");
+                showInference(lastProcessingTimeMs + "ms");*/
               }
             });
 
   }
 
-  private void onFacesDetected(long currTimestamp, List<Face> faces) {
+  @RequiresApi(api = Build.VERSION_CODES.M)
+  private void onFacesDetected(long currTimestamp, List<Face> faces) throws InterruptedException {
 
     cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
     final Canvas canvas = new Canvas(cropCopyBitmap);
@@ -407,7 +457,9 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
     final Canvas cvFace = new Canvas(faceBmp);
 
     boolean saved = false;
-
+    /*while(preWork == true){
+      wait.postDelayed(waitWork,3500);
+    }*/
     for (Face face : faces) {
 
       LOGGER.i("FACE" + face.toString());
@@ -448,14 +500,14 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
         final long startTime = SystemClock.uptimeMillis();
         final List<Classifier.Recognition> resultsAux = detector.recognizeImage(faceBmp);
         lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
-
+        /*if(preWork == true){
+          wait.postDelayed(waitWork,3500);
+        }*/
         if (resultsAux.size() > 0) {
-
           Classifier.Recognition result = resultsAux.get(0);
-
           float conf = result.getConfidence();
           if (conf >= 0.6f) {
-
+            alertStart = true;
             confidence = conf;
             label = result.getTitle();
             if (result.getId().equals("0")) {
@@ -463,9 +515,27 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
             }
             else {
               color = Color.RED;
+              //post.post(alertWork);
+              //post.postDelayed((Runnable) this,3000);
+
+              //post.postDelayed(alertWork,3000);
+
+              //playAlert();
+              //post.post(alertWork);
+              setVibrate(500);
+              if(stopalert == false){
+                //post.postDelayed(alertWork,3000);
+                post.post(alertWork);
+                //playAlert();
+              }else{
+                //post.removeCallbacks(alertWork);
+              }
             }
           }
 
+        }else{
+          alertStart = false;
+          stopAlert();
         }
 
         if (getCameraFacing() == CameraCharacteristics.LENS_FACING_FRONT) {
@@ -506,5 +576,29 @@ public class DetectorActivity extends CameraActivity implements OnImageAvailable
 
   }
 
+  private void playAlert(){
+    if(alertStart == true){
+      snd.play(alert,1,1,0,-1,1);
+    }
+    stopalert = true;
+  }
+  private void stopAlert(){
+    snd.stop(alert);
+  }
+
+  private Runnable alertWork = new Runnable() {
+    @Override
+    public void run() {
+      snd.play(alert,1,1,0,0,1);
+      stopalert = true;
+      wait.postDelayed(waitWork,3500);
+    }
+  };
+  private Runnable waitWork = new Runnable() {
+    @Override
+    public void run() {
+      stopalert = false;
+    }
+  };
 
 }
